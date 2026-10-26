@@ -122,6 +122,10 @@ pnpm desktop:pack          # 可选：打本地 zip（不会写死生产更新�
 - 不要把本演示壳重新接上任何商业发卡中转后，再声称「官方开源版」
 - 公开服务前请自行评估鉴权、CORS 与工作区路径风险；默认面向本机使用
 
+## 贡献
+
+改代码请开分支并提 PR，**不要直推 `main`**。详见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
 ## 协议
 
 [MIT](./LICENSE)
