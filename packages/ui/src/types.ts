@@ -200,21 +200,10 @@ export type SessionInfo = {
   dataDir?: string;
   dailyChat?: { used: number; remaining: number | null; limit: number };
   dailyImage?: { used: number; remaining: number | null; limit: number };
-  videoQuota?: { used: number; remaining: number | null; limit: number; windowDays: number };
-  beta?: BetaOffer | null;
+  videoQuota?: { used: number; remaining: number | null; limit: number; windowDays: number };
 };
 
-export type BetaOffer = {
-  open: boolean;
-  planName: string;
-  durationDays: number;
-  chatQuota: number;
-  imageQuota: number;
-  videoQuota: number;
-  rewardDays: number;
-  claimed: boolean;
-  eligible: boolean;
-};
+
 
 export type MediaJob = {
   id: string;

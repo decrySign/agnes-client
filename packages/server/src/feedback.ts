@@ -313,14 +313,7 @@ export function adoptFeedback(
   if (row.status !== "open") throw new Error("这条已经处理过了");
   const fallback = getQuotaSettings(db).feedbackRewardDays;
   const rewardDays = Math.max(1, Math.min(365, Math.floor(Number(days ?? fallback) || fallback)));
-  const linked = db.prepare(
-    `SELECT e.device_hash AS device_hash FROM entitlements e
-     WHERE e.plan = 'licensed' AND e.user_id IS NOT NULL AND e.user_id = (
-       SELECT redeemed_user_id FROM license_keys
-       WHERE redeemed_device_hash = ? AND redeemed_user_id IS NOT NULL
-       ORDER BY redeemed_at DESC LIMIT 1
-     )`,
-  ).get(row.device_hash) as { device_hash: string } | undefined;
+  const linked = undefined as { device_hash: string } | undefined;
   const granted = grantLicenseDays(db, linked?.device_hash || row.device_hash, rewardDays);
   const ts = now();
   db.prepare(

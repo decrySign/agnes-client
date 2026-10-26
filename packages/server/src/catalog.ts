@@ -266,7 +266,7 @@ export function overviewStats(db: DatabaseSync): {
 } {
   const trials = (db.prepare("SELECT COUNT(*) AS c FROM entitlements WHERE plan='trial'").get() as { c: number }).c;
   const licensed = (db.prepare("SELECT COUNT(*) AS c FROM entitlements WHERE plan='licensed'").get() as { c: number }).c;
-  const unusedKeys = (db.prepare("SELECT COUNT(*) AS c FROM license_keys WHERE status='unused'").get() as { c: number }).c;
+  const unusedKeys = { c: 0 } as { c: number };
   const customers = (db.prepare("SELECT COUNT(*) AS c FROM customers").get() as { c: number }).c;
   const leads = (db.prepare("SELECT COUNT(*) AS c FROM entitlements WHERE lead_wechat != ''").get() as { c: number }).c;
   const wallet = (db.prepare("SELECT COALESCE(SUM(wallet_cents), 0) AS s FROM customers").get() as { s: number }).s;

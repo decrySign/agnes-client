@@ -185,10 +185,7 @@ export function shouldLogRequest(method: string, pathName: string): boolean {
   if (pathName === "/api/videos/generate") return true;
   if (pathName === "/api/oss-no-relay/videos") return true;
   if (pathName === "/api/oss-no-relay/images/generations") return true;
-  if (pathName === "/api/oss-removed/trial") return true;
   if (pathName === "/api/entitlements/consume") return true;
-  if (pathName === "/api/oss-removed/activate") return true;
-  if (pathName === "/api/oss-removed/beta-month") return true;
   if (pathName === "/api/feedbacks") return true;
   if (pathName === "/api/auth") return true;
   return false;
@@ -196,9 +193,6 @@ export function shouldLogRequest(method: string, pathName: string): boolean {
 
 export function kindFromPath(pathName: string): string {
   if (pathName.includes("/messages")) return "chat";
-  if (pathName.includes("/entitlements/trial")) return "trial";
-  if (pathName.includes("/entitlements/beta-month")) return "beta";
-  if (pathName.includes("/entitlements/activate")) return "activate";
   if (pathName.includes("/entitlements/consume")) return "consume";
   if (pathName.includes("/images")) return "image";
   if (pathName.includes("/videos")) return "video";

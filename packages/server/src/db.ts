@@ -179,7 +179,6 @@ export function openDb(dataDir: string): DatabaseSync {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS license_keys (
       id TEXT PRIMARY KEY,
       code_hash TEXT NOT NULL UNIQUE,
       code_hint TEXT NOT NULL,
@@ -271,7 +270,6 @@ export function openDb(dataDir: string): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_diffs_conversation ON diffs(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_entitlements_device ON entitlements(device_hash);
     CREATE INDEX IF NOT EXISTS idx_entitlements_wechat ON entitlements(lead_wechat);
-    CREATE INDEX IF NOT EXISTS idx_licenses_hash ON license_keys(code_hash);
     CREATE INDEX IF NOT EXISTS idx_customers_wechat ON customers(wechat);
     CREATE TABLE IF NOT EXISTS beta_claims (
       device_hash TEXT PRIMARY KEY,
@@ -282,7 +280,6 @@ export function openDb(dataDir: string): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_beta_claims_ip ON beta_claims(ip);
   `);
   migrateColumns(db);
-  db.exec("CREATE INDEX IF NOT EXISTS idx_licenses_customer ON license_keys(customer_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_ledger_customer ON wallet_ledger(customer_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_request_logs_created ON request_logs(created_at DESC)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_request_logs_kind ON request_logs(kind, created_at)");
@@ -347,12 +344,6 @@ function migrateColumns(db: DatabaseSync): void {
   addColumn(db, "personas", "account_id", "TEXT");
   addColumn(db, "media_jobs", "account_id", "TEXT");
   addColumn(db, "accounts", "device_hash", "TEXT");
-  addColumn(db, "license_keys", "plan_id", "TEXT");
-  addColumn(db, "license_keys", "customer_id", "TEXT");
-  addColumn(db, "license_keys", "note", "TEXT NOT NULL DEFAULT ''");
-  addColumn(db, "license_keys", "allow_image", "INTEGER NOT NULL DEFAULT 1");
-  addColumn(db, "license_keys", "allow_video", "INTEGER NOT NULL DEFAULT 1");
-  addColumn(db, "license_keys", "allow_agent", "INTEGER NOT NULL DEFAULT 1");
   addColumn(db, "entitlements", "allow_image", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "entitlements", "allow_video", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "entitlements", "allow_agent", "INTEGER NOT NULL DEFAULT 0");
@@ -360,18 +351,11 @@ function migrateColumns(db: DatabaseSync): void {
   // 时长制：duration_days 0 = 永久（现在只留给超管卡）；is_super = 超级管理员版
   addColumn(db, "plans", "duration_days", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "plans", "is_super", "INTEGER NOT NULL DEFAULT 0");
-  addColumn(db, "license_keys", "duration_days", "INTEGER NOT NULL DEFAULT 0");
-  addColumn(db, "license_keys", "is_super", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "entitlements", "expires_at", "INTEGER");
   addColumn(db, "entitlements", "is_super", "INTEGER NOT NULL DEFAULT 0");
   // 付费档的图/视频按「卡有效期内总量」给额度，0 = 不限
   addColumn(db, "plans", "image_quota", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "plans", "video_quota", "INTEGER NOT NULL DEFAULT 0");
-  addColumn(db, "license_keys", "image_quota", "INTEGER NOT NULL DEFAULT 0");
-  addColumn(db, "license_keys", "video_quota", "INTEGER NOT NULL DEFAULT 0");
-  // 卡密是运营自己的库存，发出去之前要能反复查看和补发，只存哈希等于发完就找不回来了。
-  // code_hash 仍然保留给激活校验；历史卡密没有明文可补，列表里显示为空。
-  addColumn(db, "license_keys", "code_plain", "TEXT NOT NULL DEFAULT ''");
   addColumn(db, "entitlements", "image_quota", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "entitlements", "image_used", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "entitlements", "video_quota", "INTEGER NOT NULL DEFAULT 0");
@@ -392,7 +376,6 @@ function migrateColumns(db: DatabaseSync): void {
   }
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_feedbacks_ticket_seq ON feedbacks(ticket_seq) WHERE ticket_seq > 0");
   addColumn(db, "entitlements", "user_id", "TEXT");
-  addColumn(db, "license_keys", "redeemed_user_id", "TEXT");
   db.exec(`
     CREATE TABLE IF NOT EXISTS cloud_users (
       id TEXT PRIMARY KEY,

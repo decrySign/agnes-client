@@ -33,30 +33,7 @@ export type EntitlementRow = {
   user_id?: string | null;
 };
 
-export type LicenseKeyRow = {
-  id: string;
-  code_hash: string;
-  code_hint: string;
-  /** 明文API Key，运营后台随时可查可复制；历史API Key（只存过哈希）为空串 */
-  code_plain: string;
-  chat_quota: number;
-  status: "unused" | "redeemed" | "revoked";
-  redeemed_device_hash: string | null;
-  redeemed_user_id?: string | null;
-  redeemed_at: number | null;
-  plan_id: string | null;
-  customer_id: string | null;
-  note: string;
-  allow_image: number;
-  allow_video: number;
-  allow_agent: number;
-  created_at: number;
-  /** 0 = 永久 */
-  duration_days: number;
-  is_super: number;
-  image_quota: number;
-  video_quota: number;
-};
+
 
 export type EntitlementPublic = {
   plan: "trial" | "licensed";
@@ -99,25 +76,9 @@ export function parseDeviceHash(raw: string | undefined): string {
   return /^[a-f0-9]{64}$/.test(hash) ? hash : "";
 }
 
-export function normalizeLicenseCode(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
 
-export function hashLicenseCode(code: string): string {
-  return createHash("sha256").update(normalizeLicenseCode(code), "utf8").digest("hex");
-}
 
-export function formatLicenseCode(compact: string): string {
-  const c = normalizeLicenseCode(compact);
-  return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}-${c.slice(12, 16)}`;
-}
 
-export function generateLicenseCode(): string {
-  const bytes = randomBytes(16);
-  let compact = "";
-  for (const b of bytes) compact += CODE_ALPH[b % CODE_ALPH.length];
-  return formatLicenseCode(compact);
-}
 
 export function publicEntitlement(row: EntitlementRow, db?: DatabaseSync): EntitlementPublic {
   const quotas = db
@@ -188,76 +149,17 @@ export function userHasLiveLicense(db: DatabaseSync, userId: string): boolean {
  * 网页试用把 chat_quota 记成 0，靠每天的次数封顶。桌面端转发给授权服务器时曾经走了同一条，
  * 侧栏就把「不限」显示成剩余 0 次。桌面客户端来查状态或再点试用时，补回价目里的试用次数。
  */
-export function repairDesktopTrialQuota(db: DatabaseSync, deviceHash: string): EntitlementRow | undefined {
-  const row = getEntitlement(db, deviceHash);
-  if (!row || row.plan !== "trial" || row.status === "revoked" || row.chat_quota > 0) return row;
-  const quota = getQuotaSettings(db).trialChatQuota;
-  if (quota <= 0) return row;
-  db.prepare("UPDATE entitlements SET chat_quota = ?, updated_at = ? WHERE id = ? AND plan = 'trial' AND chat_quota <= 0").run(
-    quota,
-    now(),
-    row.id,
-  );
-  return getEntitlement(db, deviceHash);
-}
 
-export function listEntitlements(db: DatabaseSync, q = ""): EntitlementRow[] {
-  const text = q.trim();
-  if (!text) {
-    return db.prepare("SELECT * FROM entitlements ORDER BY updated_at DESC LIMIT 300").all() as EntitlementRow[];
-  }
-  const like = `%${text}%`;
-  return db
-    .prepare(
-      "SELECT * FROM entitlements WHERE device_hash LIKE ? OR lead_wechat LIKE ? OR license_id LIKE ? ORDER BY updated_at DESC LIMIT 300",
-    )
-    .all(like, like, like) as EntitlementRow[];
-}
 
 export function getEntitlementById(db: DatabaseSync, entitlementId: string): EntitlementRow | undefined {
   return db.prepare("SELECT * FROM entitlements WHERE id = ?").get(entitlementId) as EntitlementRow | undefined;
 }
 
-export function startTrial(db: DatabaseSync, deviceHash: string, quota = getQuotaSettings(db).trialChatQuota): EntitlementRow {
-  const existing = getEntitlement(db, deviceHash);
-  if (existing) return existing;
-  const ts = now();
-  const rowId = id("e");
-  // 免费试用可以体验对话 / Agent / 出图 / 出视频；出图出视频按天卡额度，不吃这里的次数
-  db.prepare(
-    `INSERT INTO entitlements (id, device_hash, plan, status, chat_used, chat_quota, lead_wechat, lead_bonus_applied, license_id, allow_image, allow_video, allow_agent, created_at, updated_at)
-     VALUES (?, ?, 'trial', 'active', 0, ?, '', 0, NULL, 1, 1, 1, ?, ?)`,
-  ).run(rowId, deviceHash, quota, ts, ts);
-  return getEntitlement(db, deviceHash) as EntitlementRow;
-}
 
-export function applyLead(db: DatabaseSync, deviceHash: string, wechat: string, applyBonus = true): EntitlementRow {
-  const wechatNorm = wechat.trim().slice(0, 64);
-  if (wechatNorm.length < 2) throw new Error("请填写微信联系方式");
-  const row = getEntitlement(db, deviceHash);
-  if (!row) throw new Error("该设备还没有试用或API Key");
-  if (row.lead_wechat && row.lead_wechat !== wechatNorm) throw new Error("该设备已登记过其他微信");
-  const taken = db.prepare("SELECT id FROM entitlements WHERE lead_wechat = ? AND id != ?").get(wechatNorm, row.id) as
-    | { id: string }
-    | undefined;
-  if (taken) throw new Error("该微信已登记在其他设备");
-  const ts = now();
-  let nextQuota = row.chat_quota;
-  let bonus = row.lead_bonus_applied;
-  if (applyBonus && !row.lead_bonus_applied && row.chat_quota > 0) {
-    nextQuota = row.chat_quota + getQuotaSettings(db).leadBonusQuota;
-    bonus = 1;
-  }
-  const nextStatus = row.plan === "trial" && row.status === "exhausted" && nextQuota > row.chat_used ? "active" : row.status;
-  db.prepare(
-    "UPDATE entitlements SET lead_wechat=?, lead_bonus_applied=?, chat_quota=?, status=?, updated_at=? WHERE id=?",
-  ).run(wechatNorm, bonus, nextQuota, nextStatus, ts, row.id);
-  return getEntitlement(db, deviceHash) as EntitlementRow;
-}
 
 export function consumeChat(db: DatabaseSync, deviceHash: string): EntitlementRow {
   const row = getEntitlement(db, deviceHash);
-  if (!row) throw new Error("需要先试用或配置 AGNES_API_KEY");
+  if (!row) throw new Error("请先配置 AGNES_API_KEY");
   if (row.status === "revoked") throw new Error("授权已作废");
   if (Number(row.is_super)) return row;
   if (isExpired(row)) throw new Error("授权已到期，请续期");
@@ -265,7 +167,7 @@ export function consumeChat(db: DatabaseSync, deviceHash: string): EntitlementRo
     if (row.status !== "exhausted") {
       db.prepare("UPDATE entitlements SET status='exhausted', updated_at=? WHERE id=?").run(now(), row.id);
     }
-    throw new Error("试用对话次数已用完，可配置 AGNES_API_KEY");
+    throw new Error("对话额度已用完，请配置 AGNES_API_KEY");
   }
   const used = row.chat_used + 1;
   const exhausted = row.chat_quota > 0 && used >= row.chat_quota;
@@ -278,68 +180,6 @@ export function consumeChat(db: DatabaseSync, deviceHash: string): EntitlementRo
   return getEntitlement(db, deviceHash) as EntitlementRow;
 }
 
-
-export type LicenseKeyPublic = Omit<LicenseKeyRow, "code_hash">;
-
-const LICENSE_COLUMNS =
-  "id, code_hint, code_plain, chat_quota, status, redeemed_device_hash, redeemed_at, plan_id, customer_id, note, allow_image, allow_video, allow_agent, created_at, duration_days, is_super, image_quota, video_quota";
-
-
-
-/**
- * 只删未使用和已作废的卡。已激活的卡还挂着某台设备的授权，直接删会留下一条查不到来源的
- * 授权，所以先作废（会吊销设备）再删。
- */
-
-
-/** 激活码记在账号上。同一张卡换设备登录仍然是这个账号的额度。 */
-
-/** 这台设备上已激活、还没归到别人名下的卡，注册或登录时挂到当前账号。 */
-
-/** 公测赠卡固定用在售价目里的基础版月卡，不另造一套额度。 */
-export const BETA_PLAN_ID = "basic_1m";
-
-export type BetaOffer = {
-  open: boolean;
-  planName: string;
-  durationDays: number;
-  chatQuota: number;
-  imageQuota: number;
-  videoQuota: number;
-  rewardDays: number;
-  claimed: boolean;
-  eligible: boolean;
-};
-
-type BetaPlan = {
-  id: string;
-  name: string;
-  chat_quota: number;
-  duration_days: number;
-  image_quota: number;
-  video_quota: number;
-};
-
-
-/** 只对公网 IP 限领一次。内网地址多半是反代没把真实 IP 传进来，拿来限领会把所有人挡在同一次上。 */
-
-function shanghaiDate(ms: number): string {
-  return new Date(ms).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" });
-}
-
-
-/** 老的领取记录只存了完整 IP，补上网络块（内网 / 无效地址记成 "-"，不再重复扫） */
-
-function isUniqueError(err: unknown): boolean {
-  const code = String((err as { code?: string } | null)?.code || "");
-  const msg = err instanceof Error ? err.message : String(err);
-  return code.includes("SQLITE_CONSTRAINT") || /unique/i.test(msg);
-}
-
-/**
- * 给这台设备发一张基础版月卡并立刻激活。一台设备一次；同一个公网 IP 也一次，
- * 避免换设备码反复领。已有API Key授权的不发。
- */
 
 export type GrantDaysResult = {
   applied: "expires" | "pending" | "noop";
@@ -376,7 +216,7 @@ export function grantLicenseDays(db: DatabaseSync, deviceHash: string, days: num
 /** 付费档出图/出视频：从卡的周期总量里扣。免费档不走这里（走每日额度）。 */
 export function consumeMedia(db: DatabaseSync, deviceHash: string, kind: "image" | "video"): EntitlementRow {
   const row = getEntitlement(db, deviceHash);
-  if (!row) throw new Error("需要先试用或配置 AGNES_API_KEY");
+  if (!row) throw new Error("请先配置 AGNES_API_KEY");
   if (row.status === "revoked") throw new Error("授权已作废");
   if (Number(row.is_super)) return row;
   if (isExpired(row)) throw new Error("授权已到期，请续期");
@@ -406,7 +246,6 @@ export function revokeDevice(db: DatabaseSync, entitlementId: string): Entitleme
   const row = getEntitlementById(db, entitlementId);
   if (!row) throw new Error("设备记录不存在");
   db.prepare("UPDATE entitlements SET status='revoked', updated_at=? WHERE id=?").run(now(), row.id);
-  if (row.license_id) db.prepare("UPDATE license_keys SET status='revoked' WHERE id=?").run(row.license_id);
   return getEntitlementById(db, entitlementId) as EntitlementRow;
 }
 
@@ -420,11 +259,11 @@ export class EntitlementError extends Error {
 }
 
 export function requireFeature(row: EntitlementRow | undefined, feature: "chat" | "agent" | "image" | "video"): EntitlementPublic {
-  if (!row) throw new EntitlementError("需要先试用或配置 AGNES_API_KEY", 403);
+  if (!row) throw new EntitlementError("请先配置 AGNES_API_KEY", 403);
   const pub = publicEntitlement(row);
   if (pub.expired) throw new EntitlementError("授权已到期，请续期", 403);
   if (feature === "chat" && !pub.allowChat) {
-    throw new EntitlementError(pub.status === "exhausted" ? "试用对话次数已用完，可配置 AGNES_API_KEY" : "当前授权不可对话", 403);
+    throw new EntitlementError(pub.status === "exhausted" ? "对话额度已用完，请配置 AGNES_API_KEY" : "当前授权不可对话", 403);
   }
   if (feature === "image" && !pub.allowImage) throw new EntitlementError("当前授权不可出图", 403);
   if (feature === "video" && !pub.allowVideo) throw new EntitlementError("当前授权不可出视频", 403);

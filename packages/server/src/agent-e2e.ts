@@ -15,7 +15,7 @@ import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db.js";
-import { startTrial } from "./entitlements.js";
+import { ensureLocalKeyOperator } from "./entitlements.js";
 import { customModelId, PROVIDERS_KV } from "./providers.js";
 import { AgnesClient, ensureToolCallArguments, type ChatMessage } from "@agnes/sdk";
 import { CANCELLED_TOOL_RESULT, compactForModel, executeTool, expandMentions, extractMentions, planModelSummary, readProjectRules, revertConversationCommits, ruleForCommand, shouldConfirmCommand, symbolsInText, toolResultFailed, typecheckCommand, Workspace, withWorkspaceLock, checkpointWrite, findGitBin, type ToolRuntime } from "@agnes/agent";
@@ -497,8 +497,8 @@ const db = openDb(cfg.dataDir);
 const app = createApp(cfg, db);
 
 const device = "5d".repeat(32);
-startTrial(db, device);
-const trial = await app.request("/api/entitlements/trial", { method: "POST", headers: { "x-agnes-device": device } });
+ensureLocalKeyOperator(db, device);
+const trial = await app.request("/api/entitlements/status", { method: "POST", headers: { "x-agnes-device": device } });
 const sid = (trial.headers.get("set-cookie") ?? "").match(/agnes_sid=([^;]+)/)?.[1] ?? "";
 const H = { "Content-Type": "application/json", "x-agnes-device": device, cookie: `agnes_sid=${decodeURIComponent(sid)}` };
 

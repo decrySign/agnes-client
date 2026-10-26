@@ -113,10 +113,7 @@ import {
   refundMedia,
   refundQuotaTicket,
   relayNotBefore,
-  repairDesktopTrialQuota,
-  startTrial,
   userHasLiveLicense,
-  type BetaOffer,
   type EntitlementPublic,
 } from "./entitlements.js";
 import { loginUser, logoutUser, registerUser, userCookie, userFromToken, type CloudUser } from "./users.js";
@@ -1115,7 +1112,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     const pub = publicSettings(cfg);
     const deviceHash = deviceOf(c);
     let entitlement: EntitlementPublic | null = null;
-    let beta: BetaOffer | null = null;
+    let beta: null = null;
     let cloudUser: { username: string } | null = null;
     let remoteMedia: MediaQuotaPublic | null = null;
     try {
@@ -1124,7 +1121,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         if (remote.status === 200) {
           const data = remote.data as {
             entitlement?: EntitlementPublic | null;
-            beta?: BetaOffer | null;
+            beta?: null;
             user?: { username?: string } | null;
             mediaQuota?: MediaQuotaPublic | null;
           };
@@ -1135,7 +1132,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
           cloudUser = data.user?.username ? { username: data.user.username } : null;
         }
       } else {
-        if (c.req.header("x-agnes-client") === "desktop" && deviceHash) repairDesktopTrialQuota(db, deviceHash);
+        /* oss: no desktop trial repair */
         entitlement = viewerEntitlement(c);
         const user = signedInUser(c);
         cloudUser = user ? { username: user.username } : null;
