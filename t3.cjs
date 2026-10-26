@@ -1,1 +1,0 @@
-const fs=require("fs"); const lines=fs.readFileSync("packages/server/src/app.ts","utf8").split(/\n/); console.log("len",lines.length); for(let i=0;i<60;i++) console.log((i+1)+"|"+lines[i]); console.log("---"); lines.forEach((l,i)=>{ if(l.includes("createApp")||l.includes("@agnes/agent")||l.includes("from \"node:fs\"")) console.log((i+1)+"|"+l.trim().slice(0,100)); });
