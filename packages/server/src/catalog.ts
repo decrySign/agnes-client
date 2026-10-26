@@ -35,9 +35,7 @@ export type CustomerRow = {
 
 export type QuotaSettings = {
   trialChatQuota: number;
-  leadBonusQuota: number;
-  /** 运营采纳一条需求反馈时默认赠送的授权天数 */
-  feedbackRewardDays: number;
+  leadBonusQuota: number;
   /** 公测：桌面端首次使用可领取一张基础版月卡 */
   betaMonthlyEnabled: boolean;
 };
@@ -52,7 +50,6 @@ export function getQuotaSettings(db: DatabaseSync): QuotaSettings {
   return {
     trialChatQuota: intKv(db, "trial_chat_quota", envInt("TRIAL_CHAT_QUOTA", 30)),
     leadBonusQuota: intKv(db, "lead_bonus_quota", envInt("LEAD_BONUS_QUOTA", 50)),
-    feedbackRewardDays: intKv(db, "feedback_reward_days", envInt("FEEDBACK_REWARD_DAYS", 7)),
     betaMonthlyEnabled: boolKv(db, "beta_monthly_enabled", true),
   };
 }
@@ -61,11 +58,9 @@ export function saveQuotaSettings(db: DatabaseSync, next: Partial<QuotaSettings>
   const cur = getQuotaSettings(db);
   const trial = clampQuota(next.trialChatQuota ?? cur.trialChatQuota, 1, 10_000);
   const bonus = clampQuota(next.leadBonusQuota ?? cur.leadBonusQuota, 0, 10_000);
-  const reward = clampQuota(next.feedbackRewardDays ?? cur.feedbackRewardDays, 1, 365);
   const beta = next.betaMonthlyEnabled === undefined ? cur.betaMonthlyEnabled : Boolean(next.betaMonthlyEnabled);
   setKv(db, "trial_chat_quota", String(trial));
   setKv(db, "lead_bonus_quota", String(bonus));
-  setKv(db, "feedback_reward_days", String(reward));
   setKv(db, "beta_monthly_enabled", beta ? "1" : "0");
   return getQuotaSettings(db);
 }

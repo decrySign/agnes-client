@@ -83,7 +83,7 @@ export function parseDeviceHash(raw: string | undefined): string {
 export function publicEntitlement(row: EntitlementRow, db?: DatabaseSync): EntitlementPublic {
   const quotas = db
     ? getQuotaSettings(db)
-    : { trialChatQuota: 30, leadBonusQuota: 50, feedbackRewardDays: 7, betaMonthlyEnabled: true };
+    : { trialChatQuota: 30, leadBonusQuota: 50, betaMonthlyEnabled: true };
   const superAdmin = Boolean(Number(row.is_super));
   const unlimited = superAdmin || row.chat_quota <= 0;
   const expired = isExpired(row);
@@ -181,37 +181,9 @@ export function consumeChat(db: DatabaseSync, deviceHash: string): EntitlementRo
 }
 
 
-export type GrantDaysResult = {
-  applied: "expires" | "pending" | "noop";
-  expiresAt: number | null;
-  pendingDays: number;
-  message: string;
-};
+
 
 /** 采纳需求反馈时给该设备加授权天数。已有到期日的立刻延长；试用先记待加赠。 */
-export function grantLicenseDays(db: DatabaseSync, deviceHash: string, days: number): GrantDaysResult {
-  const row = getEntitlement(db, deviceHash);
-  if (!row) throw new Error("该设备还没有试用或API Key");
-  if (row.status === "revoked") throw new Error("授权已作废");
-  const n = Math.max(1, Math.min(365, Math.floor(Number(days) || 0)));
-  const ts = now();
-  if (Number(row.is_super)) {
-    return { applied: "noop", expiresAt: null, pendingDays: 0, message: "超级管理员无需加时" };
-  }
-  if (row.plan === "licensed" && (row.expires_at === null || row.expires_at === undefined)) {
-    return { applied: "noop", expiresAt: null, pendingDays: 0, message: "该授权没有到期日，无需加时" };
-  }
-  if (row.plan === "licensed" && row.expires_at) {
-    const base = Number(row.expires_at) > ts ? Number(row.expires_at) : ts;
-    const next = base + n * DAY_MS;
-    const nextStatus = row.status === "exhausted" ? row.status : "active";
-    db.prepare("UPDATE entitlements SET expires_at=?, status=?, updated_at=? WHERE id=?").run(next, nextStatus, ts, row.id);
-    return { applied: "expires", expiresAt: next, pendingDays: Number(row.bonus_days ?? 0), message: `授权已延长 ${n} 天` };
-  }
-  const pending = Number(row.bonus_days ?? 0) + n;
-  db.prepare("UPDATE entitlements SET bonus_days=?, updated_at=? WHERE id=?").run(pending, ts, row.id);
-  return { applied: "pending", expiresAt: null, pendingDays: pending, message: `已记入待加赠 ${n} 天，下次配置 AGNES_API_KEY时叠加` };
-}
 
 /** 付费档出图/出视频：从卡的周期总量里扣。免费档不走这里（走每日额度）。 */
 export function consumeMedia(db: DatabaseSync, deviceHash: string, kind: "image" | "video"): EntitlementRow {

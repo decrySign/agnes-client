@@ -6,7 +6,6 @@ import { assertInside } from "@agnes/agent";
 import { disallowedReason } from "@agnes/agent";
 import { getQuotaSettings } from "./catalog.js";
 import { id, now } from "./db.js";
-import { grantLicenseDays } from "./entitlements.js";
 
 export const FEEDBACK_STATUSES = ["open", "adopted", "rejected"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
@@ -302,39 +301,7 @@ export async function createFeedback(
   return publicFeedback(getRow(db, feedbackId) as FeedbackRow);
 }
 
-export function adoptFeedback(
-  db: DatabaseSync,
-  feedbackId: string,
-  days?: number,
-  note?: string,
-): FeedbackPublic {
-  const row = getRow(db, feedbackId);
-  if (!row) throw new Error("反馈不存在");
-  if (row.status !== "open") throw new Error("这条已经处理过了");
-  const fallback = getQuotaSettings(db).feedbackRewardDays;
-  const rewardDays = Math.max(1, Math.min(365, Math.floor(Number(days ?? fallback) || fallback)));
-  const linked = undefined as { device_hash: string } | undefined;
-  const granted = grantLicenseDays(db, linked?.device_hash || row.device_hash, rewardDays);
-  const ts = now();
-  db.prepare(
-    "UPDATE feedbacks SET status='adopted', reward_days=?, reward_applied=?, admin_note=?, reviewed_at=?, updated_at=? WHERE id=?",
-  ).run(rewardDays, granted.applied, String(note || granted.message).slice(0, 400), ts, ts, row.id);
-  return getFeedbackForAdmin(db, feedbackId);
-}
 
-export function rejectFeedback(db: DatabaseSync, feedbackId: string, note?: string): FeedbackPublic {
-  const row = getRow(db, feedbackId);
-  if (!row) throw new Error("反馈不存在");
-  if (row.status !== "open") throw new Error("这条已经处理过了");
-  const ts = now();
-  db.prepare("UPDATE feedbacks SET status='rejected', admin_note=?, reviewed_at=?, updated_at=? WHERE id=?").run(
-    String(note || "").trim().slice(0, 400),
-    ts,
-    ts,
-    row.id,
-  );
-  return getFeedbackForAdmin(db, feedbackId);
-}
 
 /**
  * 运营回复：Markdown 正文 + 最多 3 张截图（和用户提交同样的格式 / 2MB 限制），存进同一个反馈目录。
