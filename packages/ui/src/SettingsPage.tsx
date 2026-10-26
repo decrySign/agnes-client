@@ -404,12 +404,12 @@ export function SettingsPage({
             当前：终端 {settings.allowTerminal ? "开" : "关"} · Agent 写文件 {settings.allowWrites === false ? "关" : "开"}
           </p>
           <p className="hint">
-            {`对话只写在本机 SQLite${settings.dataDir ? `（${settings.dataDir}）` : ""}。试用次数${settings.licenseRemote ? "在授权服务器上扣" : "在本机库（开发模式，删库会重置）"}。`}
+            {`对话只写在本机 SQLite${settings.dataDir ? `（${settings.dataDir}）` : ""}。试用次数${"使用你自己的 AGNES_API_KEY 直连 Agnes。"}。`}
           </p>
         </>
       ) : (
         <>
-          <p className="hint">登录和卡密在「账户」。模型在左边的「模型」。</p>
+          <p className="hint">在「通用」里配置 AGNES_API_KEY，「模型」页可添加其它 OpenAI 兼容供应商。</p>
           <DesktopPromo downloadUrl={settings.desktopDownloadUrl} />
         </>
       )}
@@ -550,23 +550,17 @@ export function SettingsPage({
       ) : null}
       {tab === "general" && settings.desktopMode ? (
         <>
-          {settings.relayManaged ? (
-            <p className="hint" style={{ marginTop: 16 }}>
-              模型调用由授权服务器代发，卡密即可使用，不需要自备 API Key。
-            </p>
-          ) : (
-            <label className="hint" style={{ display: "block", marginTop: 16 }}>
-              <div>Agnes API Key（本机保存）</div>
+          <label className="hint" style={{ display: "block", marginTop: 16 }}>
+              <div>Agnes API Key（本机存储）</div>
               <input
                 type="password"
                 className="field"
                 style={{ width: "100%", marginTop: 6 }}
-                placeholder={settings.hasApiKey ? "已配置，留空则不修改" : "粘贴 Token Plan 密钥"}
+                placeholder={settings.hasApiKey ? "已配置，输入可覆盖" : "粘贴 Token Plan 密钥"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
             </label>
-          )}
           <label className="hint" style={{ display: "block", marginTop: 16 }}>
             <div>本机工作区</div>
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}>

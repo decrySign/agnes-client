@@ -1,7 +1,11 @@
 import type { DatabaseSync } from "node:sqlite";
 import { isLoopbackIp } from "./security.js";
 import { id, now } from "./db.js";
-import { ipSource } from "./geoip.js";
+function ipSource(ip: string): string {
+  const v = (ip || "").trim().toLowerCase();
+  if (!v || v === "127.0.0.1" || v === "::1" || v.startsWith("127.")) return "本机";
+  return "公网";
+}
 import { parseUserAgent } from "./useragent.js";
 
 export type DailyChatStatus = {
@@ -179,12 +183,12 @@ export function shouldLogRequest(method: string, pathName: string): boolean {
   if (pathName.endsWith("/messages")) return true;
   if (pathName === "/api/images/generate") return true;
   if (pathName === "/api/videos/generate") return true;
-  if (pathName === "/api/relay/videos") return true;
-  if (pathName === "/api/relay/images/generations") return true;
-  if (pathName === "/api/entitlements/trial") return true;
+  if (pathName === "/api/oss-no-relay/videos") return true;
+  if (pathName === "/api/oss-no-relay/images/generations") return true;
+  if (pathName === "/api/oss-removed/trial") return true;
   if (pathName === "/api/entitlements/consume") return true;
-  if (pathName === "/api/entitlements/activate") return true;
-  if (pathName === "/api/entitlements/beta-month") return true;
+  if (pathName === "/api/oss-removed/activate") return true;
+  if (pathName === "/api/oss-removed/beta-month") return true;
   if (pathName === "/api/feedbacks") return true;
   if (pathName === "/api/auth") return true;
   return false;

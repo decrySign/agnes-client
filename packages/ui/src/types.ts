@@ -80,7 +80,7 @@ export type FileNode = {
 export type Settings = {
   hasApiKey?: boolean;
   /** 模型调用走授权服务器中转，用户不需要自备密钥 */
-  relayManaged?: boolean;
+  /** @deprecated oss */ relayManaged?: boolean;
   baseUrl: string;
   workspaceRoot?: string;
   desktopMode: boolean;

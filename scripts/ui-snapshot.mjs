@@ -123,9 +123,9 @@ function startServer(mode) {
     WEB_DIST: path.join(root, "apps", "web", "dist"),
     PORT: String(port),
     HOST: "127.0.0.1",
-    ADMIN_HOST: "admin.localhost",
-    ADMIN_USER: "",
-    ADMIN_PASSWORD: "",
+    OSS_NO_ADMIN_HOST: "admin.localhost",
+    OSS_NO_ADMIN_USER: "",
+    OSS_NO_ADMIN: "",
     AUTO_APPLY: "false",
   };
   const child = spawn(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@agnes/server", "exec", "tsx", "src/index.ts"], {

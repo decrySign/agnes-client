@@ -99,22 +99,16 @@ import {
   sessionCookie,
 } from "./accounts.js";
 import {
-  activateLicenseForUser,
   ensureLocalKeyOperator,
-  attachDeviceLicense,
-  betaOffer,
   chatTicketRefunded,
-  claimBetaMonth,
   consumeChat,
   consumeMedia,
   createQuotaTicket,
   entitlementForViewer,
   getEntitlement,
   markChatTicketUsed,
-  markTrialIp,
   parseDeviceHash,
   publicEntitlement,
-  recentTrialsFromBlock,
   refundChat,
   refundMedia,
   refundQuotaTicket,
@@ -126,26 +120,28 @@ import {
   type EntitlementPublic,
 } from "./entitlements.js";
 import { loginUser, logoutUser, registerUser, userCookie, userFromToken, type CloudUser } from "./users.js";
-import { createAdminApp } from "./admin.js";
 import { createFeedback, listMine, readFeedbackFile } from "./feedback.js";
-import {
-  bearerOf,
-  issueChatTicket,
-  readBodyLimited,
-  RELAY_CHAT_MAX_BYTES,
-  RELAY_FETCH_TIMEOUT_MS,
-  relayDeadline,
-  RELAY_MEDIA_MAX_BYTES,
-  RELAY_STREAM_IDLE_MS,
-  relayEndpoints,
-  RELAY_PATH,
-  relayStream,
-  relayTokenFor,
-  releaseRelay,
-  tryAcquireRelay,
-  verifyChatTicket,
-  verifyRelayToken,
-} from "./relay.js";
+// OSS: relay module removed — local shims; /api/oss-no-relay routes deleted.
+function isRelayPath(_p: string): boolean { return false; }
+async function licenseFetch(..._a: unknown[]): Promise<{ status: number; data: any }> {
+  return { status: 404, data: { error: "oss-local-only" } };
+}
+function bearerOf(_h: string | undefined): string { return ""; }
+function issueChatTicket(..._a: unknown[]): { ticket: string; exp: number } { return { ticket: "", exp: 0 }; }
+function verifyChatTicket(..._a: unknown[]): boolean { return false; }
+function readBodyLimited(..._a: unknown[]): Promise<string> { return Promise.resolve(""); }
+const RELAY_PATH = "/api/oss-no-relay";
+const RELAY_CHAT_MAX_BYTES = 1;
+const RELAY_FETCH_TIMEOUT_MS = 1;
+const RELAY_MEDIA_MAX_BYTES = 1;
+const RELAY_STREAM_IDLE_MS = 1;
+function relayDeadline(..._a: unknown[]): number { return 0; }
+function relayStream(..._a: unknown[]): never { throw new Error("oss"); }
+function relayTokenFor(..._a: unknown[]): string { return ""; }
+function releaseRelay(..._a: unknown[]): void {}
+function tryAcquireRelay(..._a: unknown[]): boolean { return false; }
+function verifyRelayToken(..._a: unknown[]): boolean { return false; }
+function relayEndpoints(_b: string): { baseUrl: string; videoPollUrl: string } { return { baseUrl: "", videoPollUrl: "" }; }
 import {
   deleteWorkspace,
   ensureWorkspace,
@@ -346,9 +342,7 @@ function cookieToken(header: string | undefined): string {
   return cookieValue(header, "agnes_token");
 }
 
-function isRelayPath(pathName: string): boolean {
-  return pathName === RELAY_PATH || pathName.startsWith(`${RELAY_PATH}/`);
-}
+
 
 function skipAppToken(pathName: string): boolean {
   return (
@@ -357,13 +351,9 @@ function skipAppToken(pathName: string): boolean {
     pathName === "/api/session" ||
     pathName === "/api/auth" ||
     pathName === "/api/entitlements/status" ||
-    pathName === "/api/entitlements/trial" ||
-    pathName === "/api/entitlements/lead" ||
-    pathName === "/api/entitlements/activate" ||
     pathName === "/api/users/register" ||
     pathName === "/api/users/login" ||
     pathName === "/api/users/logout" ||
-    pathName === "/api/entitlements/beta-month" ||
     pathName === "/api/entitlements/consume" ||
     pathName === "/api/entitlements/consume-media" ||
     pathName === "/api/entitlements/refund-media" ||
@@ -435,33 +425,18 @@ function ownDiff(db: DatabaseSync, diffId: string, accountId: string): DiffRow |
 
 type AppEnv = { Variables: { accountId: string } };
 
-async function serveAdminSite(c: Context, cfg: AppConfig, pathName: string) {
-  if (!cfg.adminDist || !fs.existsSync(cfg.adminDist)) {
-    return c.json({ error: "运营后台未构建" }, 404);
-  }
-  const adminDist = path.resolve(cfg.adminDist);
-  const rel = decodeURIComponent(pathName.replace(/^\/+/, ""));
-  const abs = rel ? path.resolve(adminDist, rel) : "";
-  if (rel && abs.startsWith(adminDist + path.sep) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
-    const data = await fsPromises.readFile(abs);
-    const ext = path.extname(abs).toLowerCase();
-    const type =
-      ext === ".js"
-        ? "text/javascript"
-        : ext === ".css"
-          ? "text/css"
-          : ext === ".svg"
-            ? "image/svg+xml"
-            : ext === ".json"
-              ? "application/json"
-              : "application/octet-stream";
-    return c.body(new Uint8Array(data), 200, { "Content-Type": type });
-  }
-  const html = await fsPromises.readFile(path.join(adminDist, "index.html"), "utf8");
-  return c.html(html, 200, { "Cache-Control": "no-cache, no-store, must-revalidate" });
-}
+
+function betaOffer(..._a: unknown[]): null { return null; }
+function attachDeviceLicense(..._a: unknown[]): void {}
+function markTrialIp(..._a: unknown[]): void {}
+function recentTrialsFromBlock(..._a: unknown[]): number { return 0; }
 
 export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
+  // OSS_FORCE_LOCAL
+  cfg.licenseServerUrl = "";
+  cfg.relayManaged = false;
+  cfg.relaySecret = "";
+  cfg.adminHost = "";
   const app = new Hono<AppEnv>();
   void ensureSharedMcpHub(loadMergedMcpConfig(cfg.dataDir, cfg.workspaceRoot)).catch((err) => {
     console.error("[mcp] hub start:", err instanceof Error ? err.message : err);
@@ -754,7 +729,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     if (cfg.apiKey) return null;
     if (!cfg.relayManaged) return "未配置 AGNES_API_KEY";
     if (deviceHash) await entitlementNow(deviceHash).catch(() => null);
-    return cfg.apiKey ? null : "还没拿到模型通道凭证：请到「设置」里激活卡密，已激活的话重启客户端再试";
+    return cfg.apiKey ? null : "还没拿到模型通道凭证：请到「设置」里配置 AGNES_API_KEY，已激活的话重启客户端再试";
   }
 
   /** 对话级模型校验：网页只能用列表里的内置模型，自定义模型只在桌面端且要能解析出密钥 */
@@ -771,7 +746,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
 
   async function entitlementNow(deviceHash: string): Promise<EntitlementPublic | null> {
     if (!deviceHash) return null;
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch("/api/entitlements/status", deviceHash, "GET");
       if (remote.status !== 200) return null;
       return (remote.data as { entitlement?: EntitlementPublic }).entitlement ?? (remote.data as EntitlementPublic);
@@ -783,7 +758,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
   /** 付费档扣图/视频额度；桌面生产走 LICENSE_SERVER_URL 时转给授权服务器 */
   /** 返回授权服务器给的退还单据（本机扣的不需要） */
   async function consumeMediaQuota(deviceHash: string, kind: "image" | "video"): Promise<string> {
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch("/api/entitlements/consume-media", deviceHash, "POST", { kind });
       if (remote.status !== 200) {
         throw new Error((remote.data as { error?: string }).error || "额度校验失败");
@@ -797,7 +772,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
   /** 返回这次是否真的退回了（界面据此决定显示「次数已退回」） */
   async function refundMediaQuota(deviceHash: string, kind: "image" | "video", ticket = ""): Promise<boolean> {
     try {
-      if (cfg.licenseServerUrl) {
+      if (false /* oss */) {
         // 旧授权服务器没有单据也照发，它会按旧逻辑退；新服务器只认单据
         const remote = await licenseFetch("/api/entitlements/refund-media", deviceHash, "POST", { kind, ticket });
         return remote.status === 200;
@@ -817,10 +792,10 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
   async function imageRemainingFor(c: Context, ent: EntitlementPublic | null): Promise<number | null> {
     if (!ent || ent.isSuper) return null;
     if (ent.plan === "licensed") return ent.imageRemaining ?? null;
-    if (cfg.relayManaged && cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch("/api/entitlements/status", deviceOf(c), "GET");
       const image = (remote.data as { mediaQuota?: { image?: { remaining?: number | null } } } | null)?.mediaQuota?.image;
-      return typeof image?.remaining === "number" ? image.remaining : null;
+      return typeof image?.remaining === "number" ? image!.remaining! : null;
     }
     if (q.dailyImage <= 0) return null;
     return inspectQuota(db, requestIp(c, proxy), deviceOf(c), "image", q.dailyImage, 1).remaining;
@@ -829,15 +804,15 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
   function webCopy(message: string): string {
     if (cfg.desktopMode) return message;
     if (message.includes("用完")) return "试用对话次数已用完。Agent 和改文件请用付费桌面版";
-    if (message.includes("试用或激活") || message.includes("卡密")) return "需要先开始试用";
+    if (message.includes("试用或激活") || message.includes("API Key")) return "需要先开始试用";
     return message;
   }
 
   function featureDenied(ent: EntitlementPublic | null, feature: "chat" | "agent" | "image" | "video"): string | null {
     if (feature === "agent" && !cfg.desktopMode) return "网页版只能对话。Agent 和改文件请用付费桌面版";
-    if (!ent) return webCopy("需要先试用或激活卡密");
+    if (!ent) return webCopy("需要先试用或配置 AGNES_API_KEY");
     if (feature === "chat" && !ent.allowChat) {
-      return webCopy(ent.status === "exhausted" ? "试用对话次数已用完，可激活卡密" : "当前授权不可对话");
+      return webCopy(ent.status === "exhausted" ? "试用对话次数已用完，可配置 AGNES_API_KEY" : "当前授权不可对话");
     }
     if (feature === "image" && cfg.desktopMode && !ent.allowImage) return "当前授权不可出图";
     if (feature === "video" && cfg.desktopMode && !ent.allowVideo) return "当前授权不可出视频";
@@ -873,17 +848,6 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
       if (token) cloudUserToken = token;
     }
     await next();
-  });
-  const adminApp = createAdminApp(cfg, db);
-  app.use("*", async (c, next) => {
-    if (!isAdminHost(c.req.header("host"), cfg)) return next();
-    const pathName = new URL(c.req.url).pathname;
-    if (pathName === "/api" || pathName.startsWith("/api/")) {
-      const url = new URL(c.req.url);
-      url.pathname = pathName.replace(/^\/api/, "") || "/";
-      return adminApp.fetch(new Request(url, c.req.raw));
-    }
-    return serveAdminSite(c, cfg, pathName);
   });
   app.use("*", async (c, next) => {
     if (isKnownHost(c.req.header("host"), cfg)) return next();
@@ -1029,12 +993,12 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     }
     const user = signedInUser(c);
     const row = entitlementForViewer(db, user?.id || "", deviceHash);
-    if (!row) return c.json({ error: "需要先试用或激活卡密" }, 403);
+    if (!row) return c.json({ error: "需要先试用或配置 AGNES_API_KEY" }, 403);
     const ent = publicEntitlement(row, db);
     if (ent.status === "revoked") return c.json({ error: "授权已停用" }, 403);
     if (ent.expired) return c.json({ error: "授权已到期，请续期" }, 403);
     if (feature === "chat" && !ent.allowChat) {
-      return c.json({ error: ent.status === "exhausted" ? "对话次数已用完，可续期卡密" : "当前授权不可对话" }, 403);
+      return c.json({ error: ent.status === "exhausted" ? "对话次数已用完，可续期API Key" : "当前授权不可对话" }, 403);
     }
     if (feature === "image" && !ent.allowImage) return c.json({ error: "当前授权不可出图" }, 403);
     if (feature === "video" && !ent.allowVideo) return c.json({ error: "当前授权不可出视频" }, 403);
@@ -1121,126 +1085,9 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     });
   }
 
-  app.post(`${RELAY_PATH}/chat/completions`, relayRate, async (c) => {
-    const who = relayCaller(c, "chat");
-    if (who instanceof Response) return who;
-    const ticketDenied = relayChatTicket(c, who.deviceHash);
-    if (ticketDenied) return ticketDenied;
-    if (!tryAcquireRelay(who.deviceHash)) return c.json({ error: "这台设备的连接太多，请稍后再试" }, 429);
-    let streaming = false;
-    try {
-      const limited = await readBodyLimited(c.req.raw, RELAY_CHAT_MAX_BYTES);
-      if (!limited.ok) return c.json({ error: "请求过大" }, 413);
-      const upstream = await fetch(`${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST",
-        headers: { ...upstreamHeaders(), Accept: "text/event-stream", "Accept-Encoding": "identity" },
-        body: limited.text,
-        signal: relayDeadline(RELAY_FETCH_TIMEOUT_MS, c.req.raw.signal),
-      });
-      if (!upstream.ok || !upstream.body) {
-        const text = await upstream.text().catch(() => "");
-        return new Response(text || JSON.stringify({ error: "上游无响应" }), {
-          status: upstream.status || 502,
-          headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
-        });
-      }
-      streaming = true;
-      // 上游接住了：这张票据对应的额度不能再退
-      markChatTicketUsed(db, c.req.header("x-agnes-chat-ticket") || "");
-      // 逐块透传。上游停住或客户端断开就结束，避免连接一直占着
-      return new Response(relayStream(upstream.body, RELAY_STREAM_IDLE_MS, c.req.raw.signal, () => releaseRelay(who.deviceHash)), {
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        },
-      });
-    } finally {
-      if (!streaming) releaseRelay(who.deviceHash);
-    }
-  });
 
-  app.post(`${RELAY_PATH}/images/generations`, relayRate, async (c) => {
-    const who = relayCaller(c, "image");
-    if (who instanceof Response) return who;
-    if (!tryAcquireRelay(who.deviceHash)) return c.json({ error: "这台设备的连接太多，请稍后再试" }, 429);
-    let charged = false;
-    try {
-      const limited = await readBodyLimited(c.req.raw, RELAY_MEDIA_MAX_BYTES);
-      if (!limited.ok) return c.json({ error: "请求过大" }, 413);
-      const taken = relayTakeMedia(c, who, "image");
-      if (taken instanceof Response) return taken;
-      charged = taken;
-      const res = await relayJson(c, `${cfg.baseUrl.replace(/\/$/, "")}/images/generations`, limited.text);
-      if (res.status >= 400) {
-        const refunded = relayRefundMedia(c, who, "image", charged);
-        charged = false;
-        return await markRelayRefunded(res, refunded);
-      }
-      return res;
-    } catch (err) {
-      const refunded = relayRefundMedia(c, who, "image", charged);
-      return c.json({ error: publicError(err, cfg.isProduction), ...(refunded ? { agnes_refunded: true } : {}) }, 502);
-    } finally {
-      releaseRelay(who.deviceHash);
-    }
-  });
 
-  app.post(`${RELAY_PATH}/videos`, relayRate, async (c) => {
-    const who = relayCaller(c, "video");
-    if (who instanceof Response) return who;
-    if (!tryAcquireRelay(who.deviceHash)) return c.json({ error: "这台设备的连接太多，请稍后再试" }, 429);
-    let charged = false;
-    try {
-      const limited = await readBodyLimited(c.req.raw, RELAY_MEDIA_MAX_BYTES);
-      if (!limited.ok) return c.json({ error: "请求过大" }, 413);
-      const taken = relayTakeMedia(c, who, "video");
-      if (taken instanceof Response) return taken;
-      charged = taken;
-      const res = await relayJson(c, `${cfg.baseUrl.replace(/\/$/, "")}/videos`, limited.text);
-      if (res.status >= 400) {
-        const refunded = relayRefundMedia(c, who, "video", charged);
-        charged = false;
-        return await markRelayRefunded(res, refunded);
-      }
-      return res;
-    } catch (err) {
-      const refunded = relayRefundMedia(c, who, "video", charged);
-      console.error("[relay/videos]", err instanceof Error ? err.message : err);
-      return c.json({ error: publicError(err, cfg.isProduction), ...(refunded ? { agnes_refunded: true } : {}) }, 502);
-    } finally {
-      releaseRelay(who.deviceHash);
-    }
-  });
 
-  // 轮询在上游是另一个 host，不跟 baseUrl 同源，所以要单独开一条
-  app.get(`${RELAY_PATH}/videos/poll`, relayRate, async (c) => {
-    const who = relayCaller(c, "video");
-    if (who instanceof Response) return who;
-    const videoId = c.req.query("video_id") ?? "";
-    if (!/^[\w.-]{1,128}$/.test(videoId)) return c.json({ error: "video_id 无效" }, 400);
-    const modelName = c.req.query("model_name") || cfg.videoModel;
-    if (!/^[\w.-]{1,64}$/.test(modelName)) return c.json({ error: "model_name 无效" }, 400);
-    if (!tryAcquireRelay(who.deviceHash)) return c.json({ error: "这台设备的连接太多，请稍后再试" }, 429);
-    try {
-      const url = new URL(VIDEO_POLL_PATH);
-      url.searchParams.set("video_id", videoId);
-      url.searchParams.set("model_name", modelName);
-      const upstream = await fetch(url, {
-        headers: { Authorization: `Bearer ${cfg.apiKey}` },
-        signal: relayDeadline(30_000, c.req.raw.signal),
-      });
-      const text = await upstream.text();
-      return new Response(text, {
-        status: upstream.status,
-        headers: { "Content-Type": upstream.headers.get("content-type") || "application/json" },
-      });
-    } finally {
-      releaseRelay(who.deviceHash);
-    }
-  });
 
   app.post("/api/auth", rateLimit(web ? 8 : 20, 60_000, "auth", proxy), fuse("auth", q.hourAuth, q.fiveHourAuth), async (c) => {
     const body = await c.req.json<{ token?: string }>().catch(() => ({ token: "" }));
@@ -1342,52 +1189,12 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     return c.json(body);
   });
 
-  app.post("/api/entitlements/trial", rateLimit(web ? 5 : 10, 60_000, "trial", proxy), fuse("trial", q.hourTrial, q.fiveHourTrial), async (c) => {
-    const deviceHash = deviceOf(c);
-    if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    if (cfg.licenseServerUrl) {
-      const remote = await licenseFetch("/api/entitlements/trial", deviceHash, "POST", {});
-      const data = remote.data as { ok?: boolean; entitlement?: EntitlementPublic; error?: string };
-      if (remote.status === 200 && (data.ok || data.entitlement)) {
-        const profile = workspaceOf(deviceHash);
-        return c.json(
-          { ok: true, entitlement: data.entitlement, account: publicAccount(profile, cfg.desktopMode) },
-          200,
-          { "Set-Cookie": sidFor(profile.id) },
-        );
-      }
-      return c.json(remote.data as Record<string, unknown>, remote.status as 400);
-    }
-    const desktopClient = c.req.header("x-agnes-client") === "desktop";
-    // 设备码是客户端自报的，换一个就是新试用。同一网络一天只放几台新设备，挡住批量刷
-    const trialIp = requestIp(c, proxy);
-    if (web && desktopClient && q.trialNewPerIpDay > 0 && !getEntitlement(db, deviceHash)) {
-      if (recentTrialsFromBlock(db, trialIp) >= q.trialNewPerIpDay) {
-        return c.json({ error: "这个网络今天新开的试用太多了，请明天再试，或激活卡密" }, 429);
-      }
-    }
-    let row = startTrial(db, deviceHash, desktopClient || !web ? undefined : 0);
-    if (web && desktopClient) markTrialIp(db, deviceHash, trialIp);
-    if (desktopClient) row = repairDesktopTrialQuota(db, deviceHash) ?? row;
-    const profile = workspaceOf(deviceHash);
-    return c.json(
-      {
-        ok: true,
-        entitlement: publicEntitlement(row, db),
-        account: publicAccount(profile, cfg.desktopMode),
-        relay: relayPayload(deviceHash),
-      },
-      200,
-      { "Set-Cookie": sidFor(profile.id) },
-    );
-  });
 
-  app.post("/api/entitlements/lead", (c) => c.json({ error: "留资请在运营后台登记" }, 404));
 
   app.get("/api/feedbacks", async (c) => {
     const deviceHash = deviceOf(c);
     if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch("/api/feedbacks", deviceHash, "GET");
       return c.json(remote.data as object, remote.status as 200);
     }
@@ -1404,7 +1211,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
       images?: string[];
       contact?: string;
     };
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch(
         "/api/feedbacks",
         deviceHash,
@@ -1439,7 +1246,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         (db.prepare("SELECT device_hash FROM accounts WHERE id = ?").get(c.get("accountId")) as { device_hash?: string } | undefined)
           ?.device_hash || "",
       );
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
       try {
         const res = await fetch(`${cfg.licenseServerUrl}/api/feedbacks/${encodeURIComponent(feedbackId)}/files/${encodeURIComponent(name)}`, {
@@ -1468,65 +1275,12 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     }
   });
 
-  app.post("/api/entitlements/activate", rateLimit(web ? 8 : 20, 60_000, "activate", proxy), fuse("activate", q.hourActivate, q.fiveHourActivate), async (c) => {
-    const deviceHash = deviceOf(c);
-    if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    const body = await c.req.json<{ code?: string }>().catch(() => ({ code: "" }));
-    if (!signedInUser(c) && !cloudUserToken) return c.json({ error: "请先登录后再激活卡密" }, 401);
-    if (cfg.licenseServerUrl) {
-      const remote = await licenseFetch("/api/entitlements/activate", deviceHash, "POST", { code: body.code });
-      const data = remote.data as { ok?: boolean; entitlement?: EntitlementPublic; user?: { username?: string } };
-      if (remote.status === 200 && data.ok) {
-        const profile = workspaceOf(deviceHash);
-        return c.json(
-          {
-            ok: true,
-            entitlement: data.entitlement,
-            user: data.user,
-            account: publicAccount(profile, cfg.desktopMode),
-          },
-          200,
-          { "Set-Cookie": sidFor(profile.id) },
-        );
-      }
-      return c.json(remote.data as object, remote.status as 200);
-    }
-    const user = signedInUser(c);
-    if (!user) return c.json({ error: "请先登录后再激活卡密" }, 401);
-    try {
-      const row = activateLicenseForUser(db, user.id, body.code ?? "", deviceHash);
-      const profile = workspaceOf(deviceHash);
-      const pub = publicEntitlement(row, db);
-      return c.json(
-        {
-          ok: true,
-          entitlement: !cfg.desktopMode && c.req.header("x-agnes-client") !== "desktop" ? { ...pub, allowAgent: false } : pub,
-          user: { username: user.username },
-          account: publicAccount(profile, cfg.desktopMode),
-          relay: relayPayload(deviceHash),
-        },
-        200,
-        { "Set-Cookie": sidFor(profile.id) },
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const status = msg.includes("其他设备") || msg.includes("其他账号") ? 409 : 400;
-      return c.json({ error: msg }, status);
-    }
-  });
 
   app.get("/api/entitlements/status", async (c) => {
     const deviceHash = deviceOf(c);
     if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    if (cfg.licenseServerUrl) {
-      const remote = await licenseFetch("/api/entitlements/status", deviceHash, "GET");
-      return c.json(remote.data as Record<string, unknown>, remote.status as 400);
-    }
-    // OSS / local authority: BYOK unlocks full local operator (no card key).
-    if (cfg.apiKey && !cfg.relayManaged) {
-      ensureLocalKeyOperator(db, deviceHash);
-    }
-    if (c.req.header("x-agnes-client") === "desktop") repairDesktopTrialQuota(db, deviceHash);
+    if (false) { /* oss */ }
+    if (cfg.apiKey) ensureLocalKeyOperator(db, deviceHash);
     const user = signedInUser(c);
     const row = entitlementForViewer(db, user?.id || "", deviceHash);
     const pub = row ? publicEntitlement(row, db) : null;
@@ -1551,65 +1305,11 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     });
   });
 
-  app.post("/api/entitlements/beta-month", rateLimit(web ? 8 : 20, 60_000, "beta", proxy), fuse("beta", q.hourActivate, q.fiveHourActivate), async (c) => {
-    const deviceHash = deviceOf(c);
-    if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    // 浏览器会带 Origin 和 sec-fetch-site。Node 的 fetch（桌面端转发给授权服务器）只会带 sec-fetch-mode，不能据此拒绝。
-    const fromBrowser = Boolean(c.req.header("origin") || c.req.header("sec-fetch-site"));
-    if (!cfg.desktopMode && fromBrowser) return c.json({ error: "公测月卡请在桌面客户端领取" }, 403);
-    const signedIn = signedInUser(c);
-    if (signedIn && userHasLiveLicense(db, signedIn.id)) {
-      return c.json({ error: "这个账号已经有授权，不用再领公测月卡" }, 409);
-    }
-    if (!cfg.licenseServerUrl && cfg.betaRequireLogin && !signedIn) {
-      return c.json({ error: "请先在「设置 · 账号」登录，再领取公测月卡" }, 401);
-    }
-    if (cfg.licenseServerUrl) {
-      const remote = await licenseFetch("/api/entitlements/beta-month", deviceHash, "POST", {});
-      const data = remote.data as { ok?: boolean; entitlement?: EntitlementPublic; notice?: string; beta?: BetaOffer; relay?: unknown };
-      if (remote.status === 200 && data.ok) {
-        const profile = workspaceOf(deviceHash);
-        return c.json(
-          {
-            ok: true,
-            entitlement: data.entitlement,
-            notice: data.notice,
-            beta: data.beta,
-            relay: data.relay,
-            account: publicAccount(profile, cfg.desktopMode),
-          },
-          200,
-          { "Set-Cookie": sidFor(profile.id) },
-        );
-      }
-      return c.json(remote.data as object, remote.status as 200);
-    }
-    try {
-      const granted = claimBetaMonth(db, deviceHash, requestIp(c, proxy), signedIn?.id || "");
-      const profile = workspaceOf(deviceHash);
-      return c.json(
-        {
-          ok: true,
-          entitlement: publicEntitlement(granted.row, db),
-          notice: granted.notice,
-          beta: betaOffer(db, deviceHash, signedIn?.id || ""),
-          account: publicAccount(profile, cfg.desktopMode),
-          relay: relayPayload(deviceHash),
-        },
-        200,
-        { "Set-Cookie": sidFor(profile.id) },
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const status = msg.includes("已经领过") || msg.includes("已经有授权") ? 409 : 400;
-      return c.json({ error: msg }, status);
-    }
-  });
 
   app.post("/api/entitlements/consume", fuse("chat", q.hourChat, q.fiveHourChat), async (c) => {
     const deviceHash = deviceOf(c);
     if (!deviceHash) return c.json({ error: "缺少设备码" }, 400);
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await licenseFetch("/api/entitlements/consume", deviceHash, "POST", {});
       return c.json(remote.data as Record<string, unknown>, remote.status as 400);
     }
@@ -1680,14 +1380,13 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     return c.json({ ok: true });
   });
 
-  app.get("/api/licenses", (c) => c.json({ error: "发卡请在运营后台" }, 404));
-  app.post("/api/licenses", (c) => c.json({ error: "发卡请在运营后台" }, 404));
-  app.post("/api/licenses/:id/revoke", (c) => c.json({ error: "发卡请在运营后台" }, 404));
+
+
 
   app.post("/api/users/register", async (c) => {
     const deviceHash = deviceOf(c);
     const body = await c.req.json<{ username?: string; password?: string }>().catch(() => ({ username: "", password: "" }));
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await fetch(`${cfg.licenseServerUrl}/api/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-agnes-device": deviceHash },
@@ -1695,8 +1394,11 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         signal: AbortSignal.timeout(12_000),
       });
       const data = (await remote.json().catch(() => ({ error: "授权服务无响应" }))) as { token?: string; error?: string };
-      if (remote.status === 200 && data.token) rememberCloudUser(data.token);
-      const headers = data.token ? { "Set-Cookie": userCookie(data.token, cfg.isProduction && !cfg.desktopMode) } : undefined;
+      if (remote.status === 200 && data.token) {
+        rememberCloudUser(String(data.token || ""));
+      }
+      const tok = data.token ? String(data.token) : "";
+      const headers = tok ? { "Set-Cookie": userCookie(tok, cfg.isProduction && !cfg.desktopMode) } : undefined;
       return c.json(data, remote.status as 200, headers);
     }
     try {
@@ -1718,7 +1420,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
   app.post("/api/users/login", async (c) => {
     const deviceHash = deviceOf(c);
     const body = await c.req.json<{ username?: string; password?: string }>().catch(() => ({ username: "", password: "" }));
-    if (cfg.licenseServerUrl) {
+    if (false /* oss */) {
       const remote = await fetch(`${cfg.licenseServerUrl}/api/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-agnes-device": deviceHash },
@@ -1726,8 +1428,11 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         signal: AbortSignal.timeout(12_000),
       });
       const data = (await remote.json().catch(() => ({ error: "授权服务无响应" }))) as { token?: string; error?: string };
-      if (remote.status === 200 && data.token) rememberCloudUser(data.token);
-      const headers = data.token ? { "Set-Cookie": userCookie(data.token, cfg.isProduction && !cfg.desktopMode) } : undefined;
+      if (remote.status === 200 && data.token) {
+        rememberCloudUser(String(data.token || ""));
+      }
+      const tok = data.token ? String(data.token) : "";
+      const headers = tok ? { "Set-Cookie": userCookie(tok, cfg.isProduction && !cfg.desktopMode) } : undefined;
       return c.json(data, remote.status as 200, headers);
     }
     try {
@@ -1762,7 +1467,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     if (!cfg.desktopMode) return c.json({ error: "网页不使用本机档案" }, 404);
     const deviceHash = deviceOf(c);
     const ent = await entitlementNow(deviceHash);
-    if (!ent) return c.json({ error: "需要先试用或激活卡密" }, 403);
+    if (!ent) return c.json({ error: "需要先试用或配置 AGNES_API_KEY" }, 403);
     const body = await c.req.json<{ name?: string }>().catch(() => ({ name: "" }));
     const parsed = parseProfileName(body.name ?? "");
     if (typeof parsed !== "string") return c.json({ error: parsed.error }, 400);
@@ -1783,7 +1488,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     if (!cfg.desktopMode) return c.json({ error: "网页不使用本机档案" }, 404);
     const deviceHash = deviceOf(c);
     const ent = await entitlementNow(deviceHash);
-    if (!ent) return c.json({ error: "需要先试用或激活卡密" }, 403);
+    if (!ent) return c.json({ error: "需要先试用或配置 AGNES_API_KEY" }, 403);
     const body = await c.req.json<{ id?: string }>().catch(() => ({ id: "" }));
     const row = db.prepare("SELECT id, name FROM accounts WHERE id = ?").get(body.id ?? "") as
       | { id: string; name: string }
@@ -2673,7 +2378,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         }
         dailyIp = ip;
       }
-      if (cfg.licenseServerUrl) {
+      if (false /* oss */) {
         const remote = await licenseFetch("/api/entitlements/consume", deviceHash, "POST", {});
         if (remote.status !== 200) {
           releaseRun();
@@ -3387,7 +3092,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
         else if (freeImage) {
           refundQuota(db, requestIp(c, proxy), deviceOf(c), "image");
           refunded = true;
-        } else if (cfg.relayManaged) refunded = relayRefundedFlag(err);
+        } else if (false /* oss */) refunded = relayRefundedFlag(err);
         console.error("[images/generate]", err instanceof Error ? err.message : err);
         return { error: publicError(err, cfg.isProduction), refunded, status: 500 };
       }
@@ -3489,7 +3194,7 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
       else if (!cfg.relayManaged && q.videoLimit > 0 && !entForVideo?.isSuper) {
         refundQuota(db, requestIp(c, proxy), deviceOf(c), "video");
         refunded = true;
-      } else if (cfg.relayManaged) refunded = relayRefundedFlag(err);
+      } else if (false /* oss */) refunded = relayRefundedFlag(err);
       console.error("[videos/generate]", err instanceof Error ? err.message : err);
       return c.json({ error: publicError(err, cfg.isProduction), refunded }, 500);
     }
@@ -3558,8 +3263,8 @@ export function createApp(cfg: AppConfig, db: DatabaseSync): Hono<AppEnv> {
     return c.body(new Uint8Array(data), 200, headers);
   });
 
-  app.all("/admin", (c) => c.json({ error: "运营后台在独立子域名，不走 /admin" }, 404));
-  app.all("/admin/*", (c) => c.json({ error: "运营后台在独立子域名，不走 /admin" }, 404));
+  app.all("/admin", (c) => c.json({ error: "not found" }, 404));
+  app.all("/admin/*", (c) => c.json({ error: "not found" }, 404));
 
   if (cfg.webDist && fs.existsSync(cfg.webDist)) {
     const dist = cfg.webDist;

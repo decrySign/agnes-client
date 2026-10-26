@@ -13,8 +13,7 @@ import {
   PanelLeftClose,
   Plus,
   Settings,
-  CircleUser,
-  UserRound,
+    UserRound,
   X,
 } from "lucide-react";
 import {
@@ -23,9 +22,7 @@ import {
   type ApprovalMode,
   type Conversation,
   type ConversationGroup,
-  type DiffRow,
-  type BetaOffer,
-  type Entitlement,
+  type DiffRow,  type Entitlement,
   type FileNode,
   type Message,
   type Persona,
@@ -35,11 +32,7 @@ import {
 } from "./types.js";
 import { Sidebar, type SidebarTab } from "./Sidebar.js";
 import type { TurnUsage, TurnUsageTotal } from "./types.js";
-import { activateLicense,
-  claimBetaMonth,
-  loginCloud,
-  registerCloud,
-  createConversation,
+import { createConversation,
   createProfile,
   createWorkspace,
   deleteConversation,
@@ -69,14 +62,11 @@ import { activateLicense,
   rewindTo,
   saveSettings,
   selectProfile,
-  sendMessage,
-  startTrial,
-  stopConversation,
+  sendMessage,  stopConversation,
   restoreToMessage,
   isAbortError,
   type ImageAttachment, ApiError } from "./api.js";
 import { resolveDeviceHash } from "./device.js";
-import { licenseSummary } from "./entitlement.js";
 import {
   ChatTranscript,
   Composer,
@@ -97,14 +87,12 @@ import { SidePanel } from "./SidePanel.js";
 import { ImageStudio, type ImageQuotaView } from "./ImageStudio.js";
 import { VideoStudio } from "./VideoStudio.js";
 import { PersonasPage } from "./PersonasPage.js";
-import { AccountPage } from "./AccountPage.js";
 import { SettingsPage, modelLabel } from "./SettingsPage.js";
 import { SkillsPanel } from "./SkillsPanel.js";
 import { FeedbackPage } from "./FeedbackPage.js";
 import { DesktopPromo } from "./DesktopPromo.js";
-import { DesktopBetaNotice, WebBetaNotice } from "./BetaNotice.js";
 
-type View = "chat" | "images" | "videos" | "personas" | "account" | "feedback";
+type View = "chat" | "images" | "videos" | "personas" | "feedback";
 
 const MOBILE_MQ = "(max-width: 767px)";
 const SIDEBAR_KEY = "agnes_sidebar_open";
@@ -190,11 +178,7 @@ export function App() {
   const [needEntitlement, setNeedEntitlement] = useState(false);
   const [needAccount, setNeedAccount] = useState(false);
   const [profiles, setProfiles] = useState<Account[]>([]);
-  const [licenseCode, setLicenseCode] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [accountPass, setAccountPass] = useState("");
-  const [cloudUser, setCloudUser] = useState<{ username: string } | null>(null);
-  const mobile = useIsMobile();
+          const mobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window === "undefined") return true;
     if (window.matchMedia(MOBILE_MQ).matches) return false;
@@ -203,9 +187,7 @@ export function App() {
   const [newProfile, setNewProfile] = useState("");
   const [me, setMe] = useState<Account | null>(null);
   const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
-  const [beta, setBeta] = useState<BetaOffer | null>(null);
-  const [claiming, setClaiming] = useState(false);
-  const [privacyHint, setPrivacyHint] = useState("");
+      const [privacyHint, setPrivacyHint] = useState("");
   const [isDesktop, setIsDesktop] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | undefined>();
   const [dailyChat, setDailyChat] = useState<{ used: number; remaining: number | null; limit: number } | undefined>();
@@ -391,8 +373,6 @@ export function App() {
           : "对话按你的设备隔离，存在这台自建服务器；只有发给模型的内容会到 Agnes API",
       );
       setEntitlement(session.entitlement);
-      setCloudUser(session.cloudUser ?? null);
-      setBeta(session.beta ?? null);
       setProfiles(session.profiles);
       setIsDesktop(session.desktopMode);
       setDownloadUrl(session.desktopDownloadUrl);
@@ -450,7 +430,7 @@ export function App() {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("unauthorized")) setNeedAuth(true);
       else if (msg.includes("需要选择本机档案") || msg.includes("需要登录账户")) setNeedAccount(true);
-      else if (msg.includes("需要先试用或激活卡密") || msg.includes("需要先开始试用")) setNeedEntitlement(true);
+      else if (msg.includes("未配置 AGNES_API_KEY") || msg.includes("请配置 AGNES_API_KEY")) setNeedEntitlement(true);
       else setError(msg);
     }
   }
@@ -560,7 +540,6 @@ export function App() {
   async function refreshMediaQuota() {
     const session = await getSession();
     setEntitlement(session.entitlement);
-    setCloudUser(session.cloudUser ?? null);
     setDailyChat(session.dailyChat);
     setDailyImage(session.dailyImage);
     setVideoQuota(session.videoQuota);
@@ -1420,7 +1399,7 @@ export function App() {
           }}
         >
           <h1>Agnes 需要口令</h1>
-          <p className="hint">这是部署口令，不是卡密。</p>
+          <p className="hint">这是可选的访客访问令牌，不是 API Key。</p>
           <input
             type="password"
             className="field"
@@ -1439,146 +1418,45 @@ export function App() {
   async function refreshSession() {
     const session = await getSession();
     setEntitlement(session.entitlement);
-    setCloudUser(session.cloudUser ?? null);
-    setBeta(session.beta ?? null);
     setDailyChat(session.dailyChat);
     setDailyImage(session.dailyImage);
     setVideoQuota(session.videoQuota);
   }
 
-  async function claimMonthly() {
-    setClaiming(true);
-    try {
-      await claimBetaMonth();
-      try {
-        localStorage.removeItem("agnes_beta_reward_dismissed");
-      } catch {
-        /* ignore */
-      }
-      await boot();
-    } finally {
-      setClaiming(false);
-    }
-  }
 
   if (needEntitlement) {
-    const offer = isDesktop && beta?.eligible ? beta : null;
     return (
       <div className="lock">
         <div className="lock-stack">
-        {!isDesktop ? <WebBetaNotice beta={beta} downloadUrl={downloadUrl} /> : null}
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError("");
-            try {
-              if (licenseCode.trim()) {
-                if (!accountName.trim() || !accountPass) throw new Error("激活卡密需要填写账号和密码，也可以留空卡密直接试用");
-                await loginCloud(accountName.trim(), accountPass);
-                const next = await activateLicense(licenseCode.trim());
-                setCloudUser({ username: accountName.trim().toLowerCase() });
-                setEntitlement(next.entitlement);
-              } else await startTrial();
-              setLicenseCode("");
-              await boot();
-            } catch (err) {
-              setError(err instanceof Error ? err.message : String(err));
-            }
-          }}
-        >
-          <h1>{offer ? "领取公测月卡" : isDesktop ? "试用或激活" : "开始试用"}</h1>
-          {offer ? (
-            <>
-              <p className="hint">
-                公测期间，这台设备可以领取一张{offer.planName}：{offer.durationDays} 天，对话 {offer.chatQuota} 次、图片 {offer.imageQuota} 张、视频 {offer.videoQuota} 条。领取后立即开通。
-              </p>
-              <p className="hint">
-                使用中的问题可以到「反馈」提交。被采纳后，会在到期日上增加相应天数（默认每次 {offer.rewardDays} 天）。
-              </p>
-              <button className="btn btn-primary" style={{ width: "100%", marginTop: 12 }} type="button" disabled={claiming} onClick={() => {
-                setError("");
-                void claimMonthly().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-              }}>
-                {claiming ? "开通中…" : "领取并开通"}
-              </button>
-              <p className="hint" style={{ marginTop: 16 }}>已有卡密可以登录账号后激活，卡跟着账号走。也可以先试用。</p>
-              <input className="field" style={{ width: "100%", margin: "8px 0" }} placeholder="账号" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-              <input className="field" style={{ width: "100%", margin: "0 0 8px" }} placeholder="密码" type="password" value={accountPass} onChange={(e) => setAccountPass(e.target.value)} />
-              <input
-                className="field"
-                style={{ width: "100%", margin: "0 0 12px" }}
-                placeholder="卡密（选填）"
-                value={licenseCode}
-                onChange={(e) => setLicenseCode(e.target.value)}
-              />
-              <button className="btn" style={{ width: "100%" }} type="submit">
-                {licenseCode.trim() ? "登录并激活" : "先试用"}
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="hint">{privacyHint || "免费试用只能对话，次数记在这台设备上。"}</p>
-              {isDesktop ? (
-                <>
-                  <p className="hint">可先试用。激活卡密要登录账号，网页和桌面登录后是同一张卡。</p>
-                  <input className="field" style={{ width: "100%", margin: "8px 0" }} placeholder="账号" autoComplete="username" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-                  <input className="field" style={{ width: "100%", margin: "0 0 8px" }} placeholder="密码" type="password" autoComplete="current-password" value={accountPass} onChange={(e) => setAccountPass(e.target.value)} />
-                  <input
-                    className="field"
-                    style={{ width: "100%", margin: "0 0 12px" }}
-                    placeholder="卡密（选填）"
-                    value={licenseCode}
-                    onChange={(e) => setLicenseCode(e.target.value)}
-                  />
-                </>
-              ) : (
-                <>
-                  <p className="hint">可以直接试用。有卡密就登录账号后激活，额度跟着账号走。网页不能使用 Agent，也不能改本地文件。</p>
-                  <DesktopPromo downloadUrl={downloadUrl} />
-                  <input className="field" style={{ width: "100%", margin: "8px 0" }} placeholder="账号" autoComplete="username" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
-                  <input className="field" style={{ width: "100%", margin: "0 0 8px" }} placeholder="密码" type="password" autoComplete="current-password" value={accountPass} onChange={(e) => setAccountPass(e.target.value)} />
-                  <input
-                    className="field"
-                    style={{ width: "100%", margin: "0 0 12px" }}
-                    placeholder="卡密（选填）"
-                    value={licenseCode}
-                    onChange={(e) => setLicenseCode(e.target.value)}
-                  />
-                </>
-              )}
-              <button className="btn btn-primary" style={{ width: "100%", marginTop: 12 }} type="submit">
-                {licenseCode.trim() ? "登录并激活" : "开始试用"}
-              </button>
-            </>
-          )}
-          {licenseCode.trim() ? (
-            <button
-              className="btn"
-              style={{ width: "100%", marginTop: 8 }}
-              type="button"
-              onClick={() => {
-                setError("");
-                void (async () => {
-                  if (!accountName.trim() || !accountPass) throw new Error("请填写账号和密码");
-                  await registerCloud(accountName.trim(), accountPass);
-                  const next = await activateLicense(licenseCode.trim());
-                  setCloudUser({ username: accountName.trim().toLowerCase() });
-                  setEntitlement(next.entitlement);
-                  setLicenseCode("");
-                  await boot();
-                })().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-              }}
-            >
-              注册并激活
-            </button>
-          ) : null}
+          <h1>请配置 AGNES_API_KEY</h1>
+          <p className="hint">本开源演示壳使用你自己的 Agnes Token Plan 密钥，在设置里填写后即可对话。</p>
+          <button
+            className="btn btn-primary"
+            style={{ width: "100%", marginTop: 12 }}
+            type="button"
+            onClick={() => {
+              setNeedEntitlement(false);
+              setSettingsOpen(true);
+              void (async () => {
+                try {
+                  const st = await getSettings();
+                  setSettings(st);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : String(err));
+                }
+              })();
+            }}
+          >
+            打开设置
+          </button>
+          <button className="btn" style={{ width: "100%", marginTop: 8 }} type="button" onClick={() => void boot()}>
+            我已配置，重试
+          </button>
           {error ? <div className="error">{error}</div> : null}
-        </form>
         </div>
       </div>
     );
   }
-
   if (needAccount) {
     return (
       <div className="lock">
@@ -1673,13 +1551,6 @@ export function App() {
             <NavBtn active={view === "videos"} onClick={() => go("videos")} icon={<Clapperboard size={15} />} label="视频" />
           ) : null}
           <NavBtn active={view === "feedback"} onClick={() => go("feedback")} icon={<Megaphone size={15} />} label="反馈" />
-          <NavBtn
-            active={view === "account"}
-            onClick={() => go("account")}
-            icon={<CircleUser size={15} />}
-            label={cloudUser ? "账户" : "登录"}
-          />
-          <NavBtn active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={15} />} label="设置" />
         </nav>
         <Sidebar
           desktopMode={settings.desktopMode}
@@ -1711,13 +1582,7 @@ export function App() {
         />
         <div className="sidebar-foot">
           <div>
-            {settings.desktopMode && entitlement?.plan === "licensed"
-              ? licenseSummary(entitlement)
-              : settings.desktopMode
-                ? entitlement?.remaining == null
-                  ? "试用对话不限"
-                  : `试用剩余 ${entitlement.remaining} 次对话`
-                : `今日对话 ${dailyChat?.remaining ?? dailyChat?.limit ?? 0}/${dailyChat?.limit ?? 30}，图 ${dailyImage?.remaining ?? dailyImage?.limit ?? 0}/${dailyImage?.limit ?? 2}，视频 ${videoQuota?.remaining ?? videoQuota?.limit ?? 0}/${videoQuota?.limit ?? 1}（${videoQuota?.windowDays ?? 3}天）`}
+            {settings.desktopMode ? (settings.hasApiKey ? "本机密钥已就绪" : "请配置 AGNES_API_KEY") : "自备密钥本地运行"}
           </div>
           <div>{privacyHint || (settings.storage === "local" ? "记录只在本机 SQLite" : "记录按设备隔离，存在自建服务器")}</div>
           {!settings.desktopMode ? <DesktopPromo compact downloadUrl={settings.desktopDownloadUrl} /> : null}
@@ -1770,11 +1635,6 @@ export function App() {
       ) : null}
 
       <main className="main">
-        {settings.desktopMode ? (
-          <DesktopBetaNotice beta={beta} entitlement={entitlement} onClaim={claimMonthly} onFeedback={() => go("feedback")} />
-        ) : (
-          <WebBetaNotice beta={beta} downloadUrl={settings.desktopDownloadUrl || downloadUrl} />
-        )}
         {mobile && view !== "chat" ? (
           <header className="topbar">
             <div className="topbar-left">
@@ -1782,7 +1642,7 @@ export function App() {
                 <Menu size={18} />
               </button>
               <span className="topbar-title">
-                {view === "personas" ? "人设" : view === "account" ? (cloudUser ? "账户" : "登录") : view === "feedback" ? "反馈" : view === "images" ? "图像" : "视频"}
+                {view === "personas" ? "人设" : view === "feedback" ? "反馈" : view === "images" ? "图像" : "视频"}
               </span>
             </div>
           </header>
@@ -1803,15 +1663,6 @@ export function App() {
               setPersonas(list);
               void listConversations().then(setConversations);
             }}
-          />
-        ) : view === "account" ? (
-          <AccountPage
-            settings={settings}
-            entitlement={entitlement}
-            cloudUser={cloudUser}
-            onEntitlement={setEntitlement}
-            onCloudUser={setCloudUser}
-            onRefresh={refreshSession}
           />
         ) : view === "feedback" ? (
           <FeedbackPage desktopMode={settings.desktopMode} />

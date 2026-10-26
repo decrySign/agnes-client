@@ -113,12 +113,7 @@ export function getSession() {
   return api<import("./types.js").SessionInfo>("/api/session");
 }
 
-export function startTrial() {
-  return api<{ ok: boolean; entitlement: import("./types.js").Entitlement; account: import("./types.js").Account }>(
-    "/api/entitlements/trial",
-    { method: "POST", body: JSON.stringify({}) },
-  );
-}
+
 
 export function registerCloud(username: string, password: string) {
   return api<{ ok: boolean; user: { username: string } }>("/api/users/register", {
@@ -138,22 +133,9 @@ export function logoutCloud() {
   return api<{ ok: boolean }>("/api/users/logout", { method: "POST", body: "{}" });
 }
 
-export function activateLicense(code: string) {
-  return api<{ ok: boolean; entitlement: import("./types.js").Entitlement; account: import("./types.js").Account }>(
-    "/api/entitlements/activate",
-    { method: "POST", body: JSON.stringify({ code }) },
-  );
-}
 
-export function claimBetaMonth() {
-  return api<{
-    ok: boolean;
-    entitlement: import("./types.js").Entitlement;
-    account: import("./types.js").Account;
-    notice: string;
-    beta: import("./types.js").BetaOffer;
-  }>("/api/entitlements/beta-month", { method: "POST", body: JSON.stringify({}) });
-}
+
+
 
 export function listProfiles() {
   return api<import("./types.js").Account[]>("/api/accounts");

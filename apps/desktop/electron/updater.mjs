@@ -465,7 +465,7 @@ async function fetchFile(url, destPath, timeoutMs, onProgress) {
 export function readFeedUrl() {
   try {
     const pkg = require("../package.json");
-    const baked = String(pkg.agnesUpdateFeed || "").trim().replace(/\/+$/, "");
+    const baked = "".trim().replace(/\/+$/, "");
     if (baked) return baked;
   } catch {
     /* unpackaged tests */

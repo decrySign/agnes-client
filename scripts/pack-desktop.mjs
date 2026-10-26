@@ -42,15 +42,10 @@ const dirOnly = process.argv.includes("--dir");
 // --out <目录>：换输出目录（相对 apps/desktop）。发在线更新时用它避开正在运行的 release/win-unpacked
 const outIdx = process.argv.indexOf("--out");
 const outDir = outIdx >= 0 ? String(process.argv[outIdx + 1] || "").trim() : "";
-const feed =
-  publicUrl(process.env.AGNES_UPDATE_FEED) ||
-  publicUrl(process.env.LICENSE_SERVER_URL) ||
-  publicUrl(envVal(path.join(root, ".env"), "LICENSE_SERVER_URL")) ||
-  publicUrl(envVal(path.join(root, ".env"), "PUBLIC_API_ORIGIN")) ||
-  defaultFeed;
-const license = publicUrl(process.env.LICENSE_SERVER_URL) || publicUrl(envVal(path.join(root, ".env"), "LICENSE_SERVER_URL")) || feed;
+const feed = "";
+const license = "";
 
-console.log(`update feed ${feed}`);
+console.log("oss pack: no update feed / license server metadata");
 fs.rmSync(bundle, { recursive: true, force: true });
 fs.mkdirSync(bundle, { recursive: true });
 
@@ -90,8 +85,6 @@ const builderArgs = [
   "--win",
   "--x64",
 ];
-if (feed) builderArgs.push(`-c.extraMetadata.agnesUpdateFeed=${feed}`);
-if (license) builderArgs.push(`-c.extraMetadata.agnesLicenseServer=${license}`);
 if (dirOnly) builderArgs.push("--dir");
 if (outDir) builderArgs.push(`-c.directories.output=${outDir}`);
 run("pnpm", builderArgs, desktop, { CSC_IDENTITY_AUTO_DISCOVERY: "false" });

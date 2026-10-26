@@ -4,7 +4,6 @@ import { assertSafeWorkspaceRoot, DEFAULT_COMMAND_ALLOW, parseToolTimeouts, type
 import { DEFAULT_BASE_URL, DEFAULT_CHAT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from "@agnes/sdk";
 import type { DatabaseSync } from "node:sqlite";
 import { parseAllowedIps, parseTrustedProxies, type IpPolicy } from "./security.js";
-import { relayEndpoints } from "./relay.js";
 import { resolveUpdateDir } from "./updates.js";
 import { getKv } from "./db.js";
 
@@ -60,8 +59,7 @@ export type AppConfig = {
   ip2regionDb: string;
   logAllRequests: boolean;
   webQuota: WebIpQuota;
-  /** 公测月卡只给登录的云端账号领（默认关；开了以后一个账号只能领一次） */
-  betaRequireLogin: boolean;
+  /** OSS: unused
   /** 继续接受旧版（不过期）中转令牌。老客户端拿到新令牌前要靠它，默认开 */
   relayAcceptLegacyTokens: boolean;
 };
@@ -178,14 +176,14 @@ export function loadConfig(repoRoot = process.cwd()): AppConfig {
   const desktopDownloadUrl = parsePublicHttpUrl(process.env.DESKTOP_DOWNLOAD_URL?.trim() || "", isProduction, "DESKTOP_DOWNLOAD_URL");
   const webHost = hostnameOf(process.env.WEB_HOST);
   const apiHost = hostnameOf(process.env.API_HOST);
-  const adminHost = hostnameOf(process.env.ADMIN_HOST);
+  const adminHost = hostnameOf(process.env.OSS_NO_ADMIN_HOST);
   const publicApiOrigin = parsePublicHttpUrl(process.env.PUBLIC_API_ORIGIN?.trim() || "", isProduction, "PUBLIC_API_ORIGIN")
     || (apiHost ? `https://${apiHost}` : "");
   const corsOrigin = process.env.CORS_ORIGIN?.trim() || (webHost ? `https://${webHost}` : "");
-  const relay = relayManaged ? relayEndpoints(licenseServerUrl) : null;
+  const relay = null;
   return {
     apiKey,
-    baseUrl: process.env.AGNES_BASE_URL?.trim() || relay?.baseUrl || DEFAULT_BASE_URL,
+    baseUrl: process.env.AGNES_BASE_URL?.trim() || DEFAULT_BASE_URL,
     workspaceRoot,
     dataDir,
     mediaDir,
@@ -202,8 +200,8 @@ export function loadConfig(repoRoot = process.cwd()): AppConfig {
     desktopMode,
     webDist: webDistEnv ? path.resolve(webDistEnv) : null,
     adminDist: adminDistEnv ? path.resolve(adminDistEnv) : null,
-    adminUser: process.env.ADMIN_USER?.trim() || "",
-    adminPassword: process.env.ADMIN_PASSWORD ?? "",
+    adminUser: process.env.OSS_NO_ADMIN_USER?.trim() || "",
+    adminPassword: process.env.OSS_NO_ADMIN_PASS ?? "",
     adminHost,
     webHost,
     apiHost,
@@ -226,7 +224,6 @@ export function loadConfig(repoRoot = process.cwd()): AppConfig {
       : path.join(dataDir, "ip2region.xdb"),
     logAllRequests: bool(process.env.REQUEST_LOG_ALL, false),
     webQuota: loadWebQuota(),
-    betaRequireLogin: bool(process.env.BETA_REQUIRE_LOGIN, false),
     relayAcceptLegacyTokens: bool(process.env.RELAY_ACCEPT_LEGACY_TOKENS, true),
   };
 }

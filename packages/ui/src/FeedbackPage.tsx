@@ -51,7 +51,7 @@ function readImage(file: File): Promise<string> {
 
 function statusLabel(row: FeedbackItem): string {
   if (row.status === "adopted") {
-    if (row.rewardApplied === "pending") return `已采纳 · 待激活卡密时加赠 ${row.rewardDays} 天`;
+    if (row.rewardApplied === "pending") return `已采纳 · 待配置密钥时加赠 ${row.rewardDays} 天`;
     if (row.rewardApplied === "noop") return "已采纳";
     return `已采纳 · 授权 +${row.rewardDays} 天`;
   }
@@ -156,7 +156,7 @@ export function FeedbackPage({ desktopMode }: { desktopMode: boolean }) {
       </h2>
       <p className="hint">
         {desktopMode
-          ? "写下遇到的问题或想加的能力。截图可以 Ctrl+V 粘贴，也可以拖进来。被采纳后，已经开通的授权会立刻延长相应天数；还在试用的，会记下来，下次激活卡密时叠加。"
+          ? "写下遇到的问题或想加的能力。截图可以 Ctrl+V 粘贴，也可以拖进来。被采纳后，已经开通的授权会立刻延长相应天数；还在试用的，会记下来，下次启动时叠加。"
           : "写下遇到的问题或想加的能力。截图可以 Ctrl+V 粘贴，也可以拖进来。被采纳后会记下授权天数，桌面端开通后加到到期日上。"}
       </p>
 

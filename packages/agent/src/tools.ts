@@ -905,7 +905,7 @@ export async function executeTool(
           .join("\n");
       }
       case "generate_image": {
-        if (runtime.allowImage === false) return "试用仅支持对话，激活卡密后可生成图像。";
+        if (runtime.allowImage === false) return "试用仅支持对话，请先在设置中配置 AGNES_API_KEY";
         const prompt = str(args, "prompt");
         if (disallowedReason(prompt, "media")) return REFUSAL_TEXT;
         const images = strArr(args, "images");
@@ -923,7 +923,7 @@ export async function executeTool(
         return `图像已生成: ${saved.publicUrl}`;
       }
       case "generate_video": {
-        if (runtime.allowVideo === false) return "试用仅支持对话，激活卡密后可生成视频。";
+        if (runtime.allowVideo === false) return "试用仅支持对话，请先在设置中配置 AGNES_API_KEY";
         const prompt = str(args, "prompt");
         if (disallowedReason(prompt, "media")) return REFUSAL_TEXT;
         const mode = (str(args, "mode", "text") as "text" | "keyframe" | "reference") || "text";

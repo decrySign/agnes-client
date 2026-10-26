@@ -22,7 +22,7 @@ const pinKeys = [
   "ALLOWED_IPS",
   "TRUST_PROXY",
   "TRUSTED_PROXIES",
-  "ADMIN_HOST",
+  "OSS_NO_ADMIN_HOST",
 ] as const;
 const pinned = Object.fromEntries(pinKeys.map((key) => [key, process.env[key]]).filter(([, value]) => value !== undefined));
 if (!process.env.AGNES_SKIP_DOTENV) {
