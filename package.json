@@ -1,0 +1,31 @@
+{
+  "name": "agnes-client",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Open-source Agnes AI desktop/web shell: bring your own AGNES_API_KEY, local chat & agent",
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "postinstall": "node scripts/ensure-native.mjs",
+    "dev": "concurrently -n server,web -c cyan,magenta \"pnpm --filter @agnes/server dev\" \"pnpm --filter @agnes/web dev\"",
+    "dev:server": "pnpm --filter @agnes/server dev",
+    "dev:web": "pnpm --filter @agnes/web dev",
+    "desktop:dev": "concurrently -n web,desktop -c magenta,green \"pnpm --filter @agnes/web dev\" \"pnpm --filter @agnes/desktop dev\"",
+    "desktop:icon": "node scripts/make-icon.mjs",
+    "desktop:pack": "node scripts/pack-desktop.mjs",
+    "build": "pnpm --filter @agnes/web build",
+    "start": "pnpm --filter @agnes/server start",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check:hardening": "pnpm --filter @agnes/server check:hardening",
+    "check:agent": "pnpm --filter @agnes/server check:agent",
+    "check:updater": "node apps/desktop/electron/updater-check.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}

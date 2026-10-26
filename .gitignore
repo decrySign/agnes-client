@@ -1,0 +1,35 @@
+node_modules/
+dist/
+out/
+release/
+build/
+data/
+media/
+.agnes/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+.vite/
+.turbo/
+coverage/
+apps/desktop/user-data/
+apps/desktop/bundle/
+apps/desktop/release/
+# 应用图标（pnpm desktop:icon 生成）要进仓库，别被上面的 build/ 吃掉
+!apps/desktop/build/
+*.xdb
+*.sqlite
+*.sqlite-journal
+.idea/
+.vscode/
+!*.code-workspace
+
+# local / secrets
+checker/
+.tmp-patch/
+*.pem
+*.key

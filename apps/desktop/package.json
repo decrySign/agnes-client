@@ -1,0 +1,52 @@
+{
+  "name": "@agnes/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "electron electron/main.mjs",
+    "pack": "node ../../scripts/pack-desktop.mjs",
+    "check:updater": "node electron/updater-check.mjs"
+  },
+  "devDependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.9"
+  },
+  "build": {
+    "appId": "com.agnes.client.oss",
+    "productName": "Agnes OSS",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/main.mjs",
+      "electron/preload.cjs",
+      "electron/updater.mjs",
+      "electron/menu.mjs",
+      "electron/log.mjs",
+      "build/icon.png",
+      "bundle/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": true,
+      "artifactName": "Agnes-OSS-${version}-win-x64.${ext}",
+      "icon": "build/icon.png",
+      "target": [
+        "zip"
+      ]
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": false,
+      "onlyLoadAppFromAsar": false,
+      "grantFileProtocolExtraPrivileges": false
+    }
+  }
+}
